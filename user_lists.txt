@@ -1,3 +1,0 @@
-Ronke;devops,admin
-Gold;designer
-Ife;admin,devops
