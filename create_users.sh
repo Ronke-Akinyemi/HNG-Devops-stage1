@@ -8,8 +8,14 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# Check if input file is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <input_file>"
+  exit 1
+fi
+
 # Define the input file and log files
-INPUT_FILE="users.txt"
+INPUT_FILE="$1"
 LOG_FILE="/var/log/user_management.log"
 PASSWORD_FILE="/var/secure/user_passwords.txt"
 
@@ -80,3 +86,4 @@ while IFS=';' read -r username groups; do
 done < "$INPUT_FILE"
 
 echo "User creation process completed." | tee -a "$LOG_FILE"
+
