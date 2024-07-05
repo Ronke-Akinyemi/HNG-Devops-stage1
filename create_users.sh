@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Define the input file and log files
-INPUT_FILE="user_lists.txt"
+INPUT_FILE="users.txt"
 LOG_FILE="/var/log/user_management.log"
 PASSWORD_FILE="/var/secure/user_passwords.txt"
 
