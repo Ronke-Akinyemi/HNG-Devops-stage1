@@ -40,7 +40,7 @@ while IFS=';' read -r username groups; do
 
   # Create user and personal group
   if id "$username" &>/dev/null; then
-    echo "User $username already exists. Skipping..." | tee -a "$LOG_FILE"
+    echo "User $username already exists. Skipping creation..." | tee -a "$LOG_FILE"
   else
     # Create the user with a home directory
     useradd -m "$username" -s /bin/bash
@@ -78,12 +78,19 @@ while IFS=';' read -r username groups; do
         groupadd "$group"
         echo "Created group $group" | tee -a "$LOG_FILE"
       fi
-      usermod -aG "$group" "$username"
-      echo "Added $username to group $group" | tee -a "$LOG_FILE"
+      if id "$username" &>/dev/null; then
+        usermod -aG "$group" "$username"
+        if [ $? -eq 0 ]; then
+          echo "Added $username to group $group" | tee -a "$LOG_FILE"
+        else
+          echo "Failed to add $username to group $group" | tee -a "$LOG_FILE"
+        fi
+      else
+        echo "User $username does not exist to add to group $group" | tee -a "$LOG_FILE"
+      fi
     fi
   done
 
 done < "$INPUT_FILE"
 
 echo "User creation process completed." | tee -a "$LOG_FILE"
-
