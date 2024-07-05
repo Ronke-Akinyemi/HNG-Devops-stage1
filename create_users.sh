@@ -1,43 +1,81 @@
 #!/bin/bash
 
-# Function to generate random password
+# Check if the script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root"
+  exit 1
+fi
+
+# Define the input file and log files
+INPUT_FILE="user_lists.txt"
+LOG_FILE="/var/log/user_management.log"
+PASSWORD_FILE="/var/secure/user_passwords.txt"
+
+# Ensure /var/secure directory exists
+mkdir -p /var/secure
+chmod 700 /var/secure
+
+# Clear previous log entries
+> "$LOG_FILE"
+
+# Function to generate a random password
 generate_password() {
-    openssl rand -base64 12
+  local password_length=12
+  tr -dc A-Za-z0-9 </dev/urandom | head -c $password_length
 }
 
-# Input file
-input_file="user_lists.txt"
-
-# Loop through each line in the input file
+# Read the input file line by line
 while IFS=';' read -r username groups; do
-    # Check if username already exists
-    if id "$username" &>/dev/null; then
-        echo "User $username already exists. Skipping."
-        echo "$(date) - User $username already exists. Skipping." >> /var/log/user_management.log
-        continue
+  # Remove leading and trailing whitespaces
+  username=$(echo "$username" | xargs)
+  groups=$(echo "$groups" | xargs)
+
+  # Create user and personal group
+  if id "$username" &>/dev/null; then
+    echo "User $username already exists. Skipping..." | tee -a "$LOG_FILE"
+  else
+    # Create the user with a home directory
+    useradd -m "$username" -s /bin/bash
+    if [ $? -eq 0 ]; then
+      echo "Created user $username" | tee -a "$LOG_FILE"
+
+      # Create personal group with the same name as the username
+      usermod -aG "$username" "$username"
+
+      # Set the home directory permissions
+      chmod 700 /home/"$username"
+      chown "$username":"$username" /home/"$username"
+
+      # Generate a random password
+      password=$(generate_password)
+      echo "$username:$password" | chpasswd
+
+      # Store the password securely
+      echo "$username:$password" >> "$PASSWORD_FILE"
+      chmod 600 "$PASSWORD_FILE"
+
+      echo "Password for $username stored securely" | tee -a "$LOG_FILE"
+    else
+      echo "Failed to create user $username" | tee -a "$LOG_FILE"
+      continue
     fi
+  fi
 
-    # Create user and primary group
-    useradd -m -s /bin/bash "$username"
-    usermod -aG "$username" "$username"
-
-    # Create additional groups
-    IFS=',' read -ra groups_array <<< "$groups"
-    for group in "${groups_array[@]}"; do
+  # Create and add groups to the user
+  IFS=',' read -r -a group_array <<< "$groups"
+  for group in "${group_array[@]}"; do
+    group=$(echo "$group" | xargs) # Remove leading and trailing whitespaces
+    if [ -n "$group" ]; then
+      if ! getent group "$group" &>/dev/null; then
         groupadd "$group"
-        usermod -aG "$group" "$username"
-    done
+        echo "Created group $group" | tee -a "$LOG_FILE"
+      fi
+      usermod -aG "$group" "$username"
+      echo "Added $username to group $group" | tee -a "$LOG_FILE"
+    fi
+  done
 
-    # Set password and log it securely
-    password=$(generate_password)
-    echo "$username:$password" | chpasswd
-    echo "$(date) - Created user $username with groups $groups" >> /var/log/user_management.log
-    echo "$username:$password" >> /var/secure/user_passwords.txt
+done < "$INPUT_FILE"
 
-    # Set permissions and ownership for home directory
-    chown -R "$username:$username" "/home/$username"
-    chmod 700 "/home/$username"
-
-done < "$input_file"
-
+echo "User creation process completed." | tee -a "$LOG_FILE"
 
