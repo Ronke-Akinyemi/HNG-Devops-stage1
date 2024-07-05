@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x  # Enable debugging output
+
 # Check if the script is run as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
@@ -78,4 +80,3 @@ while IFS=';' read -r username groups; do
 done < "$INPUT_FILE"
 
 echo "User creation process completed." | tee -a "$LOG_FILE"
-
